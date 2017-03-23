@@ -1,0 +1,57 @@
+#!/bin/sh
+# Created by James McGreggor, 2017
+
+
+#This script was written and tested on OSX; for running on Linux, minor changes to the date command may be needed.
+
+for profile in *.mobileprovision;
+do
+	printf "Checking ${profile} ...\n"
+
+	#Get the expiration date of the profile
+	expirationDate=`/usr/libexec/PlistBuddy -c 'Print :ExpirationDate' /dev/stdin <<< $(security cms -D -i "${profile}")`
+
+	#Set the expiration threshold
+	expDays=89
+
+	#Reformat the profile expiration date
+	read dow month day time timezone year <<< "${expirationDate}"
+	ymdProfExp=`date -jf"%a %e %b %Y" "${dow} ${day} ${month} ${year}" +%Y%m%d`
+
+	#Get today's date in the matching format
+	ymdToday=`date +%Y%m%d`
+
+	#Set the expiration marker to today +expDays
+	ymdExpMarker=`date -v +$expDays"d" +%Y%m%d`
+
+	#Debug
+	#printf "Todays date is:  ${ymdToday} \n"
+	#printf "Exp Marker is :  ${ymdExpMarker} \n"
+	#printf "Exp Date is   :  ${ymdProfExp} \n"
+
+        #Check to see if the profile has expired
+	if [ "$ymdToday" -ge "$ymdProfExp" ];
+    	then
+        	echo "WARNING ${profile} has EXPIRED!\n"
+
+	#If the profile has not expired check to see if the prof exp date is lt or eq to exp marker
+	elif [ $ymdProfExp \< $ymdExpMarker ];
+	then
+		#Get the remaining days between the profile expiration date and today...
+		#...but first convert to epoch
+		eToday=`date -j -f %Y%m%d $ymdToday +%s`
+		eProf=`date -j -f %Y%m%d $ymdProfExp +%s`
+
+		#...now find the difference
+		sRemaining=$(($eProf-$eToday))
+
+		#...now convert back to days
+		dRemaining=$(($sRemaining/86400))
+
+		echo "WARNING ${profile} EXPIRES in ${dRemaining} days.\n"
+
+	else
+		echo "${profile} is VALID.\n"
+	fi
+
+done
